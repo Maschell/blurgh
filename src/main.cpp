@@ -22,12 +22,14 @@
 #include <gx2/event.h>
 #include <coreinit/cache.h>
 #include <coreinit/debug.h>
+#include <vpad/input.h>
 
 #include "shaders/Texture2DShader.h"
 
 #include <wups/config.h>
 #include <wups/config/WUPSConfigItemIntegerRange.h>
 #include <wups/config/WUPSConfigItemMultipleValues.h>
+#include <wups/config/WUPSConfigItemBoolean.h>
 
 /**
     Mandatory plugin information.
@@ -86,6 +88,13 @@ screen_settings_min_max drc_minmax = {
 screen_settings tv_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 640, .y_offset = 0};
 screen_settings drc_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 0, .y_offset = 0};
 int32_t foreground_screen __attribute__((section(".data"))) = WUPS_SCREEN_DRC;
+bool interactive_mode = false;
+int32_t interactive_mode_screen = WUPS_SCREEN_DRC;
+float interactive_mode_fg_alpha = 1.0f;
+float interactive_mode_bg_alpha = 0.3f;
+
+float drcAlpha = 1.0f;
+float tvAlpha = 1.0f;
 
 /**
     Add this to one of your projects file to have access to SD/USB.
@@ -100,6 +109,8 @@ INITIALIZE_PLUGIN(){
 ON_APPLICATION_START(){
     socket_lib_init();
     log_init();
+    
+    interactive_mode = false;
 
     DEBUG_FUNCTION_LINE("VideoSquoosher: Hi!\n");
 }
@@ -158,7 +169,6 @@ void foregroundChanged(WUPSConfigItemMultipleValues* configItem, int32_t newValu
     DCFlushRange(&foreground_screen, 4);
 }
 
-
 WUPS_GET_CONFIG() {
     WUPSConfig* config = new WUPSConfig("VideoSquoosher");
     WUPSConfigCategory* catMain  = config->addCategory("Main");
@@ -167,8 +177,11 @@ WUPS_GET_CONFIG() {
 
     std::map<int32_t,std::string> screenTypeValues;
     screenTypeValues[WUPS_SCREEN_DRC] = "DRC";
-    screenTypeValues[WUPS_SCREEN_TV] = "TV";
+    screenTypeValues[WUPS_SCREEN_TV] = "TV";    
 
+    DCFlushRange(&tv_screen_settings, sizeof(tv_screen_settings));
+    DCFlushRange(&drc_screen_settings, sizeof(drc_screen_settings));
+    
     catMain->addItem(new WUPSConfigItemMultipleValues("foregrundscreen", "Screen in foreground", foreground_screen, screenTypeValues, foregroundChanged));
 
     catTV->addItem(new WUPSConfigItemIntegerRange("tvwidth",     "width",       tv_screen_settings.width,     tv_minmax.width.min,     tv_minmax.width.max,     tvWidthChanged));
@@ -258,7 +271,7 @@ void copyToTexture(GX2ColorBuffer* sourceBuffer, GX2Texture * target){
     }
 }
 
-void drawTexture(GX2Texture * texture, GX2Sampler* sampler, float x, float y, int32_t width, int32_t height){
+void drawTexture(GX2Texture * texture, GX2Sampler* sampler, float x, float y, int32_t width, int32_t height, float alpha = 1.0f){
     float widthScaleFactor = 1.0f / (float)1280;
     float heightScaleFactor = 1.0f / (float)720;
 
@@ -274,7 +287,7 @@ void drawTexture(GX2Texture * texture, GX2Sampler* sampler, float x, float y, in
     Texture2DShader::instance()->setAngle(0.0f);
     Texture2DShader::instance()->setOffset(positionOffsets);
     Texture2DShader::instance()->setScale(scale);
-    Texture2DShader::instance()->setColorIntensity(glm::vec4(1.0f));
+    Texture2DShader::instance()->setColorIntensity(glm::vec4(alpha));
     Texture2DShader::instance()->setBlurring(glm::vec3(0.0f));
     Texture2DShader::instance()->setTextureAndSampler(texture, sampler);
     Texture2DShader::instance()->draw();
@@ -413,7 +426,7 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
 
             GX2SetContextState(ownContextState);
 
-            GX2ClearColor(&main_cbuf, 1.0f, 0.0f, 0.0f, 1.0f);
+            GX2ClearColor(&main_cbuf, 0.0f, 0.0f, 0.0f, 1.0f);
 
             GX2SetContextState(ownContextState);
 
@@ -433,14 +446,14 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
 
             if(foreground_screen == WUPS_SCREEN_DRC){
                 // draw TV
-                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height);
+                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height, tvAlpha);
                 // draw DRC
-                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height);
+                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height, drcAlpha);
             }else{                
                 // draw DRC
-                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height);
+                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height, drcAlpha);
                 // draw TV
-                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height);
+                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height, tvAlpha);
             }
 
             GX2SetContextState(originalContextSave);
@@ -455,5 +468,94 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
     real_GX2CopyColorBufferToScanBuffer(cbuf, target);
 }
 
+
+DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buffer_size, VPADReadError *error) {
+    int32_t result = real_VPADRead(chan, buffer, buffer_size, error);
+    if(result > 0){
+        if(interactive_mode){
+            DEBUG_FUNCTION_LINE("loL\n");
+            if((buffer[0].trigger & VPAD_BUTTON_PLUS)){
+                interactive_mode = false;
+                tvAlpha = interactive_mode_fg_alpha;
+                drcAlpha = interactive_mode_fg_alpha;
+                return result;
+            }
+            
+            if((buffer[0].trigger & VPAD_BUTTON_MINUS)){
+               if(interactive_mode_screen == WUPS_SCREEN_DRC){
+                    interactive_mode_screen = WUPS_SCREEN_TV;
+                }else if(interactive_mode_screen == WUPS_SCREEN_TV){
+                    interactive_mode_screen = WUPS_SCREEN_DRC;
+                }
+            }
+            
+            if(interactive_mode_screen == WUPS_SCREEN_DRC){
+                tvAlpha = interactive_mode_bg_alpha;
+                drcAlpha = interactive_mode_fg_alpha;
+            }else if(interactive_mode_screen == WUPS_SCREEN_TV){
+                tvAlpha = interactive_mode_fg_alpha;
+                drcAlpha = interactive_mode_bg_alpha;                
+            }
+                
+            int32_t x_offset_delta = 0;
+            int32_t y_offset_delta = 0;
+            int32_t width_delta = 0;
+            int32_t height_delta = 0;
+            
+            if(buffer[0].hold & VPAD_BUTTON_LEFT){
+                x_offset_delta = -4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_RIGHT){
+                x_offset_delta = 4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_UP){
+                y_offset_delta = -4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_DOWN){
+                y_offset_delta = 4;
+            }
+            
+            if(buffer[0].hold & VPAD_BUTTON_Y){
+                width_delta = -4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_A){
+                width_delta = 4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_X){
+                height_delta = -4;
+            }
+            if(buffer[0].hold & VPAD_BUTTON_B){
+                height_delta = 4;
+            }
+            
+            if(interactive_mode_screen == WUPS_SCREEN_DRC){
+                drc_screen_settings.x_offset += x_offset_delta;
+                drc_screen_settings.y_offset += y_offset_delta;
+                drc_screen_settings.width += width_delta;
+                drc_screen_settings.height += height_delta;
+            }else{
+                tv_screen_settings.x_offset += x_offset_delta;
+                tv_screen_settings.y_offset += y_offset_delta;
+                tv_screen_settings.width += width_delta;
+                tv_screen_settings.height += height_delta;
+            }
+            
+            
+            // reset stuff, so we don't do shit.
+            buffer->hold = 0;
+            buffer->trigger = 0;
+            buffer->release = 0;
+        }else{
+            if((buffer[0].hold == (VPAD_BUTTON_PLUS | VPAD_BUTTON_ZR | VPAD_BUTTON_ZL))) {
+                interactive_mode = true;
+            }
+        }
+        
+    }
+    
+    return result;
+}
+
 WUPS_MUST_REPLACE(GX2CopyColorBufferToScanBuffer, WUPS_LOADER_LIBRARY_GX2, GX2CopyColorBufferToScanBuffer);
 WUPS_MUST_REPLACE(GX2SetContextState, WUPS_LOADER_LIBRARY_GX2, GX2SetContextState);
+WUPS_MUST_REPLACE(VPADRead, WUPS_LOADER_LIBRARY_VPAD, VPADRead);
