@@ -288,9 +288,9 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
         } else if (target == GX2_SCAN_TARGET_TV) {
             copyToTexture(cbuf,&tvTex);
 
-            GX2SetContextState(originalContextSave);
+            GX2SetContextState(ownContextState);
 
-            GX2ClearColor(cbuf, 1.0f, 1.0f, 1.0f, 1.0f);
+            GX2ClearColor(&main_cbuf, 1.0f, 0.0f, 0.0f, 1.0f);
 
             GX2SetContextState(ownContextState);
 
