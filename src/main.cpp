@@ -25,6 +25,10 @@
 
 #include "shaders/Texture2DShader.h"
 
+#include <wups/config.h>
+#include <wups/config/WUPSConfigItemIntegerRange.h>
+#include <wups/config/WUPSConfigItemMultipleValues.h>
+
 /**
     Mandatory plugin information.
     If not set correctly, the loader will refuse to use the plugin.
@@ -44,6 +48,45 @@ GX2ContextState* ownContextState;
 GX2ContextState* originalContextSave = NULL;
 int32_t curStatus = WUPS_APP_STATUS_BACKGROUND;
 
+
+#define WUPS_SCREEN_DRC     0
+#define WUPS_SCREEN_TV      1
+
+typedef struct min_max_pair_{
+    int32_t min;
+    int32_t max;
+} min_max_pair;
+
+typedef struct screen_settings_min_max_{
+    min_max_pair width;
+    min_max_pair height;
+    min_max_pair x_offset;
+    min_max_pair y_offset;
+} screen_settings_min_max;
+
+typedef struct screen_settings_{
+    int32_t width;
+    int32_t height;
+    int32_t x_offset;
+    int32_t y_offset;
+} screen_settings;
+
+screen_settings_min_max tv_minmax = { 
+                                    .width = { .min = 0, .max = 1280},
+                                    .height = { .min = 0, .max = 720},
+                                    .x_offset = { .min = 0, .max = 1280},
+                                    .y_offset = { .min = 0, .max = 720}};
+                                    
+screen_settings_min_max drc_minmax = { 
+                                    .width = { .min = 0, .max = 1280},
+                                    .height = { .min = 0, .max = 720},
+                                    .x_offset = { .min = 0, .max = 1280},
+                                    .y_offset = { .min = 0, .max = 720}};
+
+screen_settings tv_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 640, .y_offset = 0};
+screen_settings drc_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 0, .y_offset = 0};
+int32_t foreground_screen __attribute__((section(".data"))) = WUPS_SCREEN_DRC;
+
 /**
     Add this to one of your projects file to have access to SD/USB.
 **/
@@ -59,6 +102,86 @@ ON_APPLICATION_START(){
     log_init();
 
     DEBUG_FUNCTION_LINE("VideoSquoosher: Hi!\n");
+}
+
+void tvWidthChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("TV width %d \n",newValue);
+    tv_screen_settings.width = newValue;
+    DCFlushRange(&tv_screen_settings.width, 4);
+}
+
+void tvHeightChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("TV height %d \n",newValue);
+    tv_screen_settings.height = newValue;
+    DCFlushRange(&tv_screen_settings.height, 4);
+}
+
+void tvXOffsetChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("TV X offset %d \n",newValue);
+    tv_screen_settings.x_offset = newValue;
+    DCFlushRange(&tv_screen_settings.x_offset, 4);
+}
+
+void tvYOffsetChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("TV Y offset %d \n",newValue);
+    tv_screen_settings.y_offset = newValue;
+    DCFlushRange(&tv_screen_settings.y_offset, 4);
+}
+
+void drcWidthChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("DRC width %d \n",newValue);
+    drc_screen_settings.width = newValue;
+    DCFlushRange(&drc_screen_settings.width, 4);
+}
+
+void drcHeightChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("DRC height %d \n",newValue);
+    drc_screen_settings.height = newValue;
+    DCFlushRange(&drc_screen_settings.height, 4);
+}
+
+void drcXOffsetChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("DRC X offset %d \n",newValue);
+    drc_screen_settings.x_offset = newValue;
+    DCFlushRange(&drc_screen_settings.x_offset, 4);
+}
+
+void drcYOffsetChanged(WUPSConfigItemIntegerRange * item, int newValue) {
+    DEBUG_FUNCTION_LINE("DRC Y offset %d \n",newValue);
+    drc_screen_settings.y_offset = newValue;
+    DCFlushRange(&drc_screen_settings.y_offset, 4);
+}
+
+void foregroundChanged(WUPSConfigItemMultipleValues* configItem, int32_t newValue) {
+    DEBUG_FUNCTION_LINE("Foreground value changed to %d \n",newValue);
+    foreground_screen = newValue;
+    DCFlushRange(&foreground_screen, 4);
+}
+
+
+WUPS_GET_CONFIG() {
+    WUPSConfig* config = new WUPSConfig("VideoSquoosher");
+    WUPSConfigCategory* catMain  = config->addCategory("Main");
+    WUPSConfigCategory* catTV  = config->addCategory("TV-Screen");
+    WUPSConfigCategory* catDRC = config->addCategory("DRC-Screen");
+
+    std::map<int32_t,std::string> screenTypeValues;
+    screenTypeValues[WUPS_SCREEN_DRC] = "DRC";
+    screenTypeValues[WUPS_SCREEN_TV] = "TV";
+
+    catMain->addItem(new WUPSConfigItemMultipleValues("foregrundscreen", "Screen in foreground", foreground_screen, screenTypeValues, foregroundChanged));
+
+    catTV->addItem(new WUPSConfigItemIntegerRange("tvwidth",     "width",       tv_screen_settings.width,     tv_minmax.width.min,     tv_minmax.width.max,     tvWidthChanged));
+    catTV->addItem(new WUPSConfigItemIntegerRange("tvheight",    "height",      tv_screen_settings.height,    tv_minmax.height.min,    tv_minmax.height.max,    tvHeightChanged));
+    catTV->addItem(new WUPSConfigItemIntegerRange("tvxoffset",   "x offset",    tv_screen_settings.x_offset,  tv_minmax.x_offset.min,  tv_minmax.x_offset.max,  tvXOffsetChanged));
+    catTV->addItem(new WUPSConfigItemIntegerRange("tvyoffset",   "y offset",    tv_screen_settings.y_offset,  tv_minmax.y_offset.min,  tv_minmax.y_offset.max,  tvYOffsetChanged));
+
+    catDRC->addItem(new WUPSConfigItemIntegerRange("drcwidth",   "width",       drc_screen_settings.width,    drc_minmax.width.min,    drc_minmax.width.max,    drcWidthChanged));
+    catDRC->addItem(new WUPSConfigItemIntegerRange("drcheight",  "height",      drc_screen_settings.height,   drc_minmax.height.min,   drc_minmax.height.max,   drcHeightChanged));
+    catDRC->addItem(new WUPSConfigItemIntegerRange("drcxoffset", "x offset",    drc_screen_settings.x_offset, drc_minmax.x_offset.min, drc_minmax.x_offset.max, drcXOffsetChanged));
+    catDRC->addItem(new WUPSConfigItemIntegerRange("drcyoffset", "y offset",    drc_screen_settings.y_offset, drc_minmax.y_offset.min, drc_minmax.y_offset.max, drcYOffsetChanged));
+    
+    return config;
 }
 
 void freeUsedMemory(){
@@ -303,12 +426,22 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
                 0, 0,
                 main_cbuf.surface.width, main_cbuf.surface.height
             );
+            
+            DCFlushRange(&drc_screen_settings, sizeof(drc_screen_settings));
+            DCFlushRange(&tv_screen_settings, sizeof(tv_screen_settings));
+            DCFlushRange(&foreground_screen, sizeof(foreground_screen));
 
-            // draw DRC
-            drawTexture(&drcTex, &sampler, 0, 0, 1280/2, 720);
-
-            // draw TV
-            drawTexture(&tvTex, &sampler, 1280/2, 0, 1280/2, 720);
+            if(foreground_screen == WUPS_SCREEN_DRC){
+                // draw TV
+                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height);
+                // draw DRC
+                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height);
+            }else{                
+                // draw DRC
+                drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height);
+                // draw TV
+                drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height);
+            }
 
             GX2SetContextState(originalContextSave);
 
