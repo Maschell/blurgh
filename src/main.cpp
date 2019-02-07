@@ -74,14 +74,14 @@ typedef struct screen_settings_{
 screen_settings_min_max tv_minmax = { 
                                     .width = { .min = 0, .max = 1280},
                                     .height = { .min = 0, .max = 720},
-                                    .x_offset = { .min = 0, .max = 1280},
-                                    .y_offset = { .min = 0, .max = 720}};
+                                    .x_offset = { .min = -1280, .max = 1280},
+                                    .y_offset = { .min = -720, .max = 720}};
                                     
 screen_settings_min_max drc_minmax = { 
                                     .width = { .min = 0, .max = 1280},
                                     .height = { .min = 0, .max = 720},
-                                    .x_offset = { .min = 0, .max = 1280},
-                                    .y_offset = { .min = 0, .max = 720}};
+                                    .x_offset = { .min = -1280, .max = 1280},
+                                    .y_offset = { .min = -720, .max = 720}};
 
 screen_settings tv_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 640, .y_offset = 0};
 screen_settings drc_screen_settings __attribute__((section(".data"))) = {.width = 640, .height = 720, .x_offset = 0, .y_offset = 0};
