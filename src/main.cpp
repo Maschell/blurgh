@@ -473,12 +473,24 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
     int32_t result = real_VPADRead(chan, buffer, buffer_size, error);
     if(result > 0){
         if(interactive_mode){
-            DEBUG_FUNCTION_LINE("loL\n");
             if((buffer[0].trigger & VPAD_BUTTON_PLUS)){
                 interactive_mode = false;
                 tvAlpha = interactive_mode_fg_alpha;
                 drcAlpha = interactive_mode_fg_alpha;
                 return result;
+            }
+            
+            screen_settings * settings = &drc_screen_settings;
+            if(interactive_mode_screen == WUPS_SCREEN_TV){
+                settings = &tv_screen_settings;
+            }
+            
+            if((buffer[0].trigger & VPAD_BUTTON_R)){
+                settings->height = settings->width * (9.0f/16.0f);
+            }
+            
+            if((buffer[0].trigger & VPAD_BUTTON_L)){
+                settings->width = settings->height * (16.0f/9.0f);
             }
             
             if((buffer[0].trigger & VPAD_BUTTON_MINUS)){
@@ -528,18 +540,10 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
                 height_delta = 4;
             }
             
-            if(interactive_mode_screen == WUPS_SCREEN_DRC){
-                drc_screen_settings.x_offset += x_offset_delta;
-                drc_screen_settings.y_offset += y_offset_delta;
-                drc_screen_settings.width += width_delta;
-                drc_screen_settings.height += height_delta;
-            }else{
-                tv_screen_settings.x_offset += x_offset_delta;
-                tv_screen_settings.y_offset += y_offset_delta;
-                tv_screen_settings.width += width_delta;
-                tv_screen_settings.height += height_delta;
-            }
-            
+            settings->x_offset += x_offset_delta;
+            settings->y_offset += y_offset_delta;
+            settings->width += width_delta;
+            settings->height += height_delta;
             
             // reset stuff, so we don't do shit.
             buffer->hold = 0;
