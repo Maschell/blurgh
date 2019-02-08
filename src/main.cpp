@@ -20,11 +20,14 @@
 #include <gx2/state.h>
 #include <gx2/clear.h>
 #include <gx2/event.h>
+#include <vpad/input.h>
 #include <coreinit/cache.h>
 #include <coreinit/debug.h>
 #include <vpad/input.h>
+#include <coreinit/memorymap.h>
 
 #include "shaders/Texture2DShader.h"
+#include <coreinit/memexpheap.h>
 
 #include <wups/config.h>
 #include <wups/config/WUPSConfigItemIntegerRange.h>
@@ -73,13 +76,13 @@ typedef struct screen_settings_{
     int32_t y_offset;
 } screen_settings;
 
-screen_settings_min_max tv_minmax = { 
+screen_settings_min_max tv_minmax = {
                                     .width = { .min = 0, .max = 1280},
                                     .height = { .min = 0, .max = 720},
                                     .x_offset = { .min = -1280, .max = 1280},
                                     .y_offset = { .min = -720, .max = 720}};
-                                    
-screen_settings_min_max drc_minmax = { 
+
+screen_settings_min_max drc_minmax = {
                                     .width = { .min = 0, .max = 1280},
                                     .height = { .min = 0, .max = 720},
                                     .x_offset = { .min = -1280, .max = 1280},
@@ -101,15 +104,17 @@ float tvAlpha = 1.0f;
 **/
 WUPS_FS_ACCESS()
 
+WUPS_USE_VIDEO_MEMORY()
 
 INITIALIZE_PLUGIN(){
     memset(&main_cbuf, 0, sizeof(GX2ColorBuffer));
+    DCFlushRange(&main_cbuf,sizeof(GX2ColorBuffer));
 }
 
 ON_APPLICATION_START(){
     socket_lib_init();
     log_init();
-    
+
     interactive_mode = false;
 
     DEBUG_FUNCTION_LINE("VideoSquoosher: Hi!\n");
@@ -177,11 +182,11 @@ WUPS_GET_CONFIG() {
 
     std::map<int32_t,std::string> screenTypeValues;
     screenTypeValues[WUPS_SCREEN_DRC] = "DRC";
-    screenTypeValues[WUPS_SCREEN_TV] = "TV";    
+    screenTypeValues[WUPS_SCREEN_TV] = "TV";
 
     DCFlushRange(&tv_screen_settings, sizeof(tv_screen_settings));
     DCFlushRange(&drc_screen_settings, sizeof(drc_screen_settings));
-    
+
     catMain->addItem(new WUPSConfigItemMultipleValues("foregrundscreen", "Screen in foreground", foreground_screen, screenTypeValues, foregroundChanged));
 
     catTV->addItem(new WUPSConfigItemIntegerRange("tvwidth",     "width",       tv_screen_settings.width,     tv_minmax.width.min,     tv_minmax.width.max,     tvWidthChanged));
@@ -193,23 +198,24 @@ WUPS_GET_CONFIG() {
     catDRC->addItem(new WUPSConfigItemIntegerRange("drcheight",  "height",      drc_screen_settings.height,   drc_minmax.height.min,   drc_minmax.height.max,   drcHeightChanged));
     catDRC->addItem(new WUPSConfigItemIntegerRange("drcxoffset", "x offset",    drc_screen_settings.x_offset, drc_minmax.x_offset.min, drc_minmax.x_offset.max, drcXOffsetChanged));
     catDRC->addItem(new WUPSConfigItemIntegerRange("drcyoffset", "y offset",    drc_screen_settings.y_offset, drc_minmax.y_offset.min, drc_minmax.y_offset.max, drcYOffsetChanged));
-    
+
     return config;
+
 }
 
 void freeUsedMemory(){
     if (main_cbuf.surface.image) {
-        free(main_cbuf.surface.image);
+        WUPS_VideoMemFree(main_cbuf.surface.image);
         main_cbuf.surface.image = NULL;
     }
 
     if (drcTex.surface.image) {
-        free(drcTex.surface.image);
+        WUPS_VideoMemFree(drcTex.surface.image);
         drcTex.surface.image = NULL;
     }
 
     if (tvTex.surface.image) {
-        free(tvTex.surface.image);
+        WUPS_VideoMemFree(tvTex.surface.image);
         tvTex.surface.image = NULL;
     }
 
@@ -238,6 +244,7 @@ void copyToTexture(GX2ColorBuffer* sourceBuffer, GX2Texture * target){
             sourceBuffer->viewMip,
             sourceBuffer->viewFirstSlice,
             &target->surface, 0, 0);
+        GX2DrawDone();
     } else {
         // If AA is enabled, we need to resolve the AA buffer.
 
@@ -247,14 +254,14 @@ void copyToTexture(GX2ColorBuffer* sourceBuffer, GX2Texture * target){
         tempSurface.aa = GX2_AA_MODE1X;
         GX2CalcSurfaceSizeAndAlignment(&tempSurface);
 
-        tempSurface.image = memalign(
-            tempSurface.alignment,
-            tempSurface.imageSize
+        tempSurface.image = WUPS_VideoMemMemalign(
+            tempSurface.imageSize,
+            tempSurface.alignment
         );
         if(tempSurface.image == NULL) {
             DEBUG_FUNCTION_LINE("VideoSquoosher: failed to allocate AA surface\n");
             if(target->surface.image != NULL) {
-                free(target->surface.image);
+                WUPS_VideoMemFree(target->surface.image);
                 target->surface.image = NULL;
             }
             return;
@@ -265,9 +272,11 @@ void copyToTexture(GX2ColorBuffer* sourceBuffer, GX2Texture * target){
         GX2CopySurface(&tempSurface, 0, 0,&target->surface, 0, 0);
 
         if(tempSurface.image != NULL) {
-            free(tempSurface.image);
+            WUPS_VideoMemFree(tempSurface.image);
             tempSurface.image = NULL;
         }
+        GX2DrawDone();
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU, target->surface.image, target->surface.imageSize);
     }
 }
 
@@ -305,7 +314,7 @@ ON_APP_STATUS_CHANGED(status){
 
     if(status == WUPS_APP_STATUS_FOREGROUND){
         if (main_cbuf.surface.image) {
-            free(main_cbuf.surface.image);
+            WUPS_VideoMemFree(main_cbuf.surface.image);
             main_cbuf.surface.image = NULL;
         }
         memset(&main_cbuf, 0, sizeof(GX2ColorBuffer));
@@ -316,6 +325,7 @@ ON_APP_STATUS_CHANGED(status){
 
 DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2ScanTarget target) {
     if(curStatus != WUPS_APP_STATUS_FOREGROUND){
+
         real_GX2CopyColorBufferToScanBuffer(cbuf, target);
         return;
     }
@@ -331,15 +341,14 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
         );
 
         if (main_cbuf.surface.imageSize) {
-            main_cbuf.surface.image = memalign(
-                main_cbuf.surface.alignment,
-                main_cbuf.surface.imageSize
+            main_cbuf.surface.image = WUPS_VideoMemMemalign(
+                main_cbuf.surface.imageSize,
+                main_cbuf.surface.alignment
             );
             if(main_cbuf.surface.image == NULL){
                 OSFatal("VideoSquoosher: Failed to alloc main_cbuf\n");
             }
-
-            DEBUG_FUNCTION_LINE("VideoSquoosher: allocated %dx%d cbuf %08X\n",
+            DEBUG_FUNCTION_LINE("VideoSquoosher: allocated %dx%d main_cbuf %08X\n",
                 main_cbuf.surface.width,
                 main_cbuf.surface.height,
                 main_cbuf.surface.image);
@@ -357,18 +366,20 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
             (GX2_SURFACE_USE_COLOR_BUFFER | GX2_SURFACE_USE_TEXTURE);
 
         if (drcTex.surface.imageSize) {
-            drcTex.surface.image = memalign(
-                drcTex.surface.alignment,
-                drcTex.surface.imageSize
-            );
+
+            drcTex.surface.image = WUPS_VideoMemMemalign(
+                drcTex.surface.imageSize,
+                drcTex.surface.alignment);
+
             if(drcTex.surface.image == NULL){
                 OSFatal("VideoSquoosher: Failed to alloc drcTex\n");
             }
-
+            GX2Invalidate(GX2_INVALIDATE_MODE_CPU, drcTex.surface.image, main_cbuf.surface.imageSize);
             DEBUG_FUNCTION_LINE("VideoSquoosher: allocated %dx%d drcTex %08X\n",
                 drcTex.surface.width,
                 drcTex.surface.height,
                 drcTex.surface.image);
+
         } else {
             DEBUG_FUNCTION_LINE("VideoSquoosher: GX2InitTexture failed for drcTex!\n");
         }
@@ -382,15 +393,17 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
         tvTex.surface.use = (GX2SurfaceUse)
             (GX2_SURFACE_USE_COLOR_BUFFER | GX2_SURFACE_USE_TEXTURE);
 
+        DCFlushRange(&tvTex, sizeof(GX2Texture));
+
         if (tvTex.surface.imageSize) {
-            tvTex.surface.image = memalign(
-                tvTex.surface.alignment,
-                tvTex.surface.imageSize
+            tvTex.surface.image = WUPS_VideoMemMemalign(
+                tvTex.surface.imageSize,
+                tvTex.surface.alignment
             );
             if(tvTex.surface.image == NULL){
                 OSFatal("VideoSquoosher: Failed to alloc tvTex\n");
             }
-
+            GX2Invalidate(GX2_INVALIDATE_MODE_CPU, tvTex.surface.image, main_cbuf.surface.imageSize);
             DEBUG_FUNCTION_LINE("VideoSquoosher: allocated %dx%d tvTex %08X\n",
                 tvTex.surface.width,
                 tvTex.surface.height,
@@ -439,7 +452,7 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
                 0, 0,
                 main_cbuf.surface.width, main_cbuf.surface.height
             );
-            
+
             DCFlushRange(&drc_screen_settings, sizeof(drc_screen_settings));
             DCFlushRange(&tv_screen_settings, sizeof(tv_screen_settings));
             DCFlushRange(&foreground_screen, sizeof(foreground_screen));
@@ -449,12 +462,13 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
                 drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height, tvAlpha);
                 // draw DRC
                 drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height, drcAlpha);
-            }else{                
+            }else{
                 // draw DRC
                 drawTexture(&drcTex, &sampler, drc_screen_settings.x_offset, drc_screen_settings.y_offset, drc_screen_settings.width, drc_screen_settings.height, drcAlpha);
                 // draw TV
                 drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height, tvAlpha);
             }
+
 
             GX2SetContextState(originalContextSave);
 
@@ -479,20 +493,20 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
                 drcAlpha = interactive_mode_fg_alpha;
                 return result;
             }
-            
+
             screen_settings * settings = &drc_screen_settings;
             if(interactive_mode_screen == WUPS_SCREEN_TV){
                 settings = &tv_screen_settings;
             }
-            
+
             if((buffer[0].trigger & VPAD_BUTTON_R)){
                 settings->height = settings->width * (9.0f/16.0f);
             }
-            
+
             if((buffer[0].trigger & VPAD_BUTTON_L)){
                 settings->width = settings->height * (16.0f/9.0f);
             }
-            
+
             if((buffer[0].trigger & VPAD_BUTTON_MINUS)){
                if(interactive_mode_screen == WUPS_SCREEN_DRC){
                     interactive_mode_screen = WUPS_SCREEN_TV;
@@ -500,20 +514,20 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
                     interactive_mode_screen = WUPS_SCREEN_DRC;
                 }
             }
-            
+
             if(interactive_mode_screen == WUPS_SCREEN_DRC){
                 tvAlpha = interactive_mode_bg_alpha;
                 drcAlpha = interactive_mode_fg_alpha;
             }else if(interactive_mode_screen == WUPS_SCREEN_TV){
                 tvAlpha = interactive_mode_fg_alpha;
-                drcAlpha = interactive_mode_bg_alpha;                
+                drcAlpha = interactive_mode_bg_alpha;
             }
-                
+
             int32_t x_offset_delta = 0;
             int32_t y_offset_delta = 0;
             int32_t width_delta = 0;
             int32_t height_delta = 0;
-            
+
             if(buffer[0].hold & VPAD_BUTTON_LEFT){
                 x_offset_delta = -4;
             }
@@ -526,7 +540,7 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
             if(buffer[0].hold & VPAD_BUTTON_DOWN){
                 y_offset_delta = 4;
             }
-            
+
             if(buffer[0].hold & VPAD_BUTTON_Y){
                 width_delta = -4;
             }
@@ -539,12 +553,12 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
             if(buffer[0].hold & VPAD_BUTTON_B){
                 height_delta = 4;
             }
-            
+
             settings->x_offset += x_offset_delta;
             settings->y_offset += y_offset_delta;
             settings->width += width_delta;
             settings->height += height_delta;
-            
+
             // reset stuff, so we don't do shit.
             buffer->hold = 0;
             buffer->trigger = 0;
@@ -554,9 +568,8 @@ DECL_FUNCTION(int32_t, VPADRead, VPADChan chan, VPADStatus *buffer, uint32_t buf
                 interactive_mode = true;
             }
         }
-        
     }
-    
+
     return result;
 }
 
