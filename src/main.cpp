@@ -27,6 +27,7 @@
 #include <coreinit/memorymap.h>
 
 #include "shaders/Texture2DShader.h"
+#include "resources/Resources.h"
 #include <coreinit/memexpheap.h>
 
 #include <wups/config.h>
@@ -48,11 +49,12 @@ WUPS_PLUGIN_LICENSE("ISC");
 GX2ColorBuffer main_cbuf;
 GX2Texture drcTex;
 GX2Texture tvTex;
+GX2Texture imgTexture __attribute__((section(".data")));
+//GX2DepthBuffer tvDepthBuffer;
 GX2Sampler sampler;
 GX2ContextState* ownContextState;
 GX2ContextState* originalContextSave = NULL;
 int32_t curStatus = WUPS_APP_STATUS_BACKGROUND;
-
 
 #define WUPS_SCREEN_DRC     0
 #define WUPS_SCREEN_TV      1
@@ -105,11 +107,15 @@ float tvAlpha = 1.0f;
 WUPS_FS_ACCESS()
 
 WUPS_USE_VIDEO_MEMORY()
+WUPS_ALLOW_OVERLAY()
 
 INITIALIZE_PLUGIN(){
+    memset(&imgTexture, 0, sizeof(GX2Texture));
     memset(&main_cbuf, 0, sizeof(GX2ColorBuffer));
     DCFlushRange(&main_cbuf,sizeof(GX2ColorBuffer));
+
 }
+
 
 ON_APPLICATION_START(){
     socket_lib_init();
@@ -218,6 +224,11 @@ void freeUsedMemory(){
         WUPS_VideoMemFree(tvTex.surface.image);
         tvTex.surface.image = NULL;
     }
+
+    //if (tvDepthBuffer.surface.image) {
+    //    WUPS_VideoMemFree(tvDepthBuffer.surface.image);
+    //    tvDepthBuffer.surface.image = NULL;
+    //}
 
     if(ownContextState){
         free(ownContextState);
@@ -330,8 +341,22 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
         return;
     }
 
+
+    // we init this ONCE. then it will be in memory for ever (until we reenter the plugin loader)
+    if(!imgTexture.surface.image){
+        const uint8_t * img = Resources::GetFile("cat.png");
+        uint32_t imgSize = Resources::GetFileSize("cat.png");
+        if(!WUPS_ConvertImageToTexture(img, imgSize, &imgTexture)){
+            DEBUG_FUNCTION_LINE("Failed to convert Texture\n");
+        }
+    }
+
     if (!main_cbuf.surface.image) {
         freeUsedMemory();
+
+        //textTest = new GuiText("This is a test. Hello from a long string. The Wii U is not dead.",80, glm::vec4(1.0f,0.0f,0.0f,1.0f));
+        //textTest->setPosition(0,-200);
+        //textTest->setMaxWidth(400,GuiText::SCROLL_HORIZONTAL);
 
         GX2InitColorBuffer(&main_cbuf,
             GX2_SURFACE_DIM_TEXTURE_2D,
@@ -355,6 +380,14 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
         } else {
             DEBUG_FUNCTION_LINE("VideoSquoosher: GX2InitTexture failed for main_cbuf!\n");
         }
+
+        //GX2InitDepthBuffer(&tvDepthBuffer, GX2_SURFACE_DIM_TEXTURE_2D, main_cbuf.surface.width, main_cbuf.surface.height, 1, GX2_SURFACE_FORMAT_FLOAT_R32, GX2_AA_MODE1X);
+
+        //tvDepthBuffer.surface.image = WUPS_VideoMemMemalign(tvDepthBuffer.surface.imageSize, tvDepthBuffer.surface.alignment);
+        //if(tvDepthBuffer.surface.image == NULL){
+        //    OSFatal("VideoSquoosher: Failed to alloc tvDepthBuffer\n");
+        //}
+        //GX2Invalidate(GX2_INVALIDATE_MODE_CPU, tvDepthBuffer.surface.image, tvDepthBuffer.surface.imageSize);
 
         GX2InitTexture(&drcTex,
             854, 480, 1, 0,
@@ -428,6 +461,7 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
 
         GX2SetContextState(ownContextState);
         GX2SetColorBuffer(&main_cbuf, GX2_RENDER_TARGET_0);
+        //GX2SetDepthBuffer(&tvDepthBuffer);
         GX2SetContextState(originalContextSave);
     }
 
@@ -439,7 +473,8 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
 
             GX2SetContextState(ownContextState);
 
-            GX2ClearColor(&main_cbuf, 0.0f, 0.0f, 0.0f, 1.0f);
+            GX2ClearColor(&main_cbuf, 1.0f, 1.0f, 1.0f, 1.0f);
+            //GX2ClearDepthStencilEx(&tvDepthBuffer, tvDepthBuffer.depthClear, tvDepthBuffer.stencilClear, GX2_CLEAR_FLAGS_BOTH);
 
             GX2SetContextState(ownContextState);
 
@@ -452,6 +487,11 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
                 0, 0,
                 main_cbuf.surface.width, main_cbuf.surface.height
             );
+
+            //GX2SetDepthOnlyControl(GX2_ENABLE, GX2_ENABLE, GX2_COMPARE_FUNC_LEQUAL);
+            //GX2SetColorControl(GX2_LOGIC_OP_COPY, 1, GX2_DISABLE, GX2_ENABLE);
+            //GX2SetBlendControl(GX2_RENDER_TARGET_0, GX2_BLEND_MODE_SRC_ALPHA, GX2_BLEND_MODE_INV_SRC_ALPHA, GX2_BLEND_COMBINE_MODE_ADD, GX2_ENABLE, GX2_BLEND_MODE_SRC_ALPHA, GX2_BLEND_MODE_INV_SRC_ALPHA, GX2_BLEND_COMBINE_MODE_ADD);
+            //GX2SetCullOnlyControl(GX2_FRONT_FACE_CCW, GX2_DISABLE, GX2_ENABLE);
 
             DCFlushRange(&drc_screen_settings, sizeof(drc_screen_settings));
             DCFlushRange(&tv_screen_settings, sizeof(tv_screen_settings));
@@ -469,6 +509,9 @@ DECL_FUNCTION(void, GX2CopyColorBufferToScanBuffer, GX2ColorBuffer* cbuf, GX2Sca
                 drawTexture(&tvTex, &sampler, tv_screen_settings.x_offset, tv_screen_settings.y_offset, tv_screen_settings.width, tv_screen_settings.height, tvAlpha);
             }
 
+            if(imgTexture.surface.image != NULL){
+                drawTexture(&imgTexture, &sampler, 0,0, imgTexture.surface.width, imgTexture.surface.height, 1.0f);
+            }
 
             GX2SetContextState(originalContextSave);
 

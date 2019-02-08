@@ -1,2 +1,3 @@
 /build
 *.mod
+src/resources/filelist.cpp

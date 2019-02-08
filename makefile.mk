@@ -19,10 +19,14 @@ WUT_DEFAULT_MALLOC  := 1
 TARGET              := $(notdir $(CURDIR)).mod
 
 # Source directories
-SOURCES             := src src/shaders
+SOURCES             := src \
+                       src/shaders \
+                       src/resources
 
 # Data directories
-DATA                :=
+DATA                :=  data \
+                        data/images \
+                        data/fonts
 
 # Include directories
 INCLUDES            := src
