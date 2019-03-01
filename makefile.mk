@@ -20,7 +20,6 @@ TARGET              := $(notdir $(CURDIR)).mod
 
 # Source directories
 SOURCES             := src \
-                       src/shaders \
                        src/resources
 
 # Data directories
@@ -52,7 +51,7 @@ LIBDIRS             := $(WUPSDIR) $(WUT_ROOT) $(PORTLIBS)
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS                := -lwups -lutilswut -lcoreinit -lnsysnet -lgx2 -lgfd
+LIBS                := -lwups -lutilswut -lcoreinit -lnsysnet -lgx2
 
 #---------------------------------------------------------------------------------
 # Will be added to the final lib paths

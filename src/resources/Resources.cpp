@@ -5,7 +5,6 @@
 #include <resources/filelist.h>
 #include <system/AsyncDeleter.h>
 #include <fs/FSUtils.h>
-#include "gui/gui.h"
 
 Resources * Resources::instance = NULL;
 

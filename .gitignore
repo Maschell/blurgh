@@ -1,3 +1,6 @@
 /build
 *.mod
 src/resources/filelist.cpp
+src_backup_gui/
+blurgh.cbp
+blurgh.layout
