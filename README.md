@@ -1,12 +1,14 @@
-# Example plugin
+## Building using the Dockerfile
 
-This is just a simple example plugin which can be used as a template.
+It's possible to use a docker image for building. This way you don't need anything installed on your host system.
 
-## Building
+```
+# Build docker image (only needed once)
+docker build . -t video-sqoosher-builder
 
-For building you need: 
-- [wups](https://github.com/Maschell/WiiUPluginSystem)
-- [wut](https://github.com/decaf-emu/wut)
-- [libutils](https://github.com/Maschell/libutils/tree/wut) for common functions (WUT version).
+# make 
+docker run -it --rm -v ${PWD}:/project video-sqoosher-builder make
 
-Install them (in this order) according to their README's. Don't forget the dependencies of the libs itself.
+# make clean
+docker run -it --rm -v ${PWD}:/project video-sqoosher-builder make clean
+```

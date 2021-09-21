@@ -105,7 +105,7 @@ static const uint32_t cpPixelShaderRegs[] = {
     0x00000000
 };
 
-ColorShader * ColorShader::shaderInstance = NULL;
+ColorShader * ColorShader::shaderInstance = nullptr;
 
 ColorShader::ColorShader()
     : vertexShader(cuAttributeCount) {
@@ -150,7 +150,8 @@ ColorShader::ColorShader()
     fetchShader = new FetchShader(vertexShader.getAttributeBuffer(), vertexShader.getAttributesCount());
 
     //! model vertex has to be align and cannot be in unknown regions for GX2 like 0xBCAE1000
-    positionVtxs = (float*)memalign(GX2_VERTEX_BUFFER_ALIGNMENT, cuPositionVtxsSize);
+
+    positionVtxs = (float*)MEMAllocFromMappedMemoryForGX2Ex(cuPositionVtxsSize, GX2_VERTEX_BUFFER_ALIGNMENT);
     if(positionVtxs) {
         //! position vertex structure
         int32_t i = 0;
@@ -172,10 +173,10 @@ ColorShader::ColorShader()
 
 ColorShader::~ColorShader() {
     if(positionVtxs) {
-        free(positionVtxs);
-        positionVtxs = NULL;
+        MEMFreeToMappedMemory(positionVtxs);
+        positionVtxs = nullptr;
     }
 
     delete fetchShader;
-    fetchShader = NULL;
+    fetchShader = nullptr;
 }

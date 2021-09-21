@@ -17,7 +17,6 @@
 #ifndef SHADER_H_
 #define SHADER_H_
 
-#include <utils/utils.h>
 #include "gx2_ext.h"
 #include <gx2/shaders.h>
 #include <gx2/mem.h>
@@ -26,6 +25,8 @@
 #include <gx2/draw.h>
 #include <gx2/texture.h>
 #include <glm/glm.hpp>
+#include <memory/mappedmemory.h>
+
 
 class Shader {
 protected:

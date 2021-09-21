@@ -14,8 +14,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  ****************************************************************************/
-#include <malloc.h>
-#include <string.h>
 #include "Texture2DShader.h"
 
 static const uint32_t cpVertexShaderProgram[] = {
@@ -192,7 +190,7 @@ static const uint32_t cPixelShaderRegs[] = {
     0x00000000
 };
 
-Texture2DShader * Texture2DShader::shaderInstance = NULL;
+Texture2DShader * Texture2DShader::shaderInstance = nullptr;
 
 Texture2DShader::Texture2DShader()
     : vertexShader(cuAttributeCount) {
@@ -246,8 +244,8 @@ Texture2DShader::Texture2DShader()
     fetchShader = new FetchShader(vertexShader.getAttributeBuffer(), vertexShader.getAttributesCount());
 
     //! model vertex has to be align and cannot be in unknown regions for GX2 like 0xBCAE1000
-    posVtxs = (float*)memalign(GX2_VERTEX_BUFFER_ALIGNMENT, ciPositionVtxsSize);
-    texCoords = (float*)memalign(GX2_VERTEX_BUFFER_ALIGNMENT, ciTexCoordsVtxsSize);
+    posVtxs = (float*)MEMAllocFromMappedMemoryForGX2Ex(ciPositionVtxsSize,GX2_VERTEX_BUFFER_ALIGNMENT);
+    texCoords = (float*)MEMAllocFromMappedMemoryForGX2Ex(ciTexCoordsVtxsSize, GX2_VERTEX_BUFFER_ALIGNMENT);
 
     //! defaults for normal square
     //! position vertex structure and texture coordinate vertex structure
@@ -280,14 +278,14 @@ Texture2DShader::Texture2DShader()
 
 Texture2DShader::~Texture2DShader() {
     if(posVtxs) {
-        free(posVtxs);
-        posVtxs = NULL;
+        MEMFreeToMappedMemory(posVtxs);
+        posVtxs = nullptr;
     }
     if(texCoords) {
-        free(texCoords);
-        texCoords = NULL;
+        MEMFreeToMappedMemory(texCoords);
+        texCoords = nullptr;
     }
 
     delete fetchShader;
-    fetchShader = NULL;
+    fetchShader = nullptr;
 }

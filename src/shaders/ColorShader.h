@@ -55,7 +55,7 @@ public:
     static void destroyInstance() {
         if(shaderInstance) {
             delete shaderInstance;
-            shaderInstance = NULL;
+            shaderInstance = nullptr;
         }
     }
 
@@ -65,7 +65,7 @@ public:
         pixelShader.setShader();
     }
 
-    void setAttributeBuffer(const uint8_t * colorAttr, const float * posVtxs_in = NULL, const uint32_t & vtxCount = 0) const {
+    void setAttributeBuffer(const uint8_t * colorAttr, const float * posVtxs_in = nullptr, const uint32_t & vtxCount = 0) const {
         if(posVtxs_in && vtxCount) {
             VertexShader::setAttributeBuffer(0, vtxCount * cuVertexAttrSize, cuVertexAttrSize, posVtxs_in);
             VertexShader::setAttributeBuffer(1, vtxCount * cuColorAttrSize, cuColorAttrSize, colorAttr);

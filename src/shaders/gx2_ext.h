@@ -1,18 +1,17 @@
 #ifndef __GX2_EXTENSION_H
 #define	__GX2_EXTENSION_H
 
+#include <gx2/enum.h>
+#include <gx2/mem.h>
+#include <gx2/shaders.h>
+#include <gx2/surface.h>
+#include <gx2/texture.h>
+#include <coreinit/cache.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <gx2/draw.h>
-#include <gx2/enum.h>
-#include <gx2/mem.h>
-#include <gx2/registers.h>
-#include <gx2/sampler.h>
-#include <gx2/shaders.h>
-#include <gx2/surface.h>
-#include <gx2/texture.h>
 
 #define GX2_AA_BUFFER_CLEAR_VALUE                       0xCC
 
@@ -72,7 +71,7 @@ static inline void GX2InitDepthBuffer(GX2DepthBuffer *depthBuffer, GX2SurfaceDim
     depthBuffer->viewNumSlices = depth;
     depthBuffer->depthClear = 1.0f;
     depthBuffer->stencilClear = 0;
-    depthBuffer->hiZPtr = NULL;
+    depthBuffer->hiZPtr = nullptr;
     depthBuffer->hiZSize = 0;
     GX2CalcSurfaceSizeAndAlignment(&depthBuffer->surface);
     GX2InitDepthBufferRegs(depthBuffer);
@@ -88,9 +87,9 @@ static inline void GX2InitColorBuffer(GX2ColorBuffer *colorBuffer, GX2SurfaceDim
     colorBuffer->surface.aa = aa;
     colorBuffer->surface.use = GX2_SURFACE_USE_TEXTURE_COLOR_BUFFER_TV;
     colorBuffer->surface.imageSize = 0;
-    colorBuffer->surface.image = NULL;
+    colorBuffer->surface.image = nullptr;
     colorBuffer->surface.mipmapSize = 0;
-    colorBuffer->surface.mipmaps = NULL;
+    colorBuffer->surface.mipmaps = nullptr;
     colorBuffer->surface.tileMode = GX2_TILE_MODE_DEFAULT;
     colorBuffer->surface.swizzle = 0;
     colorBuffer->surface.alignment = 0;
@@ -101,7 +100,7 @@ static inline void GX2InitColorBuffer(GX2ColorBuffer *colorBuffer, GX2SurfaceDim
     colorBuffer->viewMip = 0;
     colorBuffer->viewFirstSlice = 0;
     colorBuffer->viewNumSlices = depth;
-    colorBuffer->aaBuffer = NULL;
+    colorBuffer->aaBuffer = nullptr;
     colorBuffer->aaSize = 0;
     for(i = 0; i < 5; i++)
         colorBuffer->regs[i] = 0;
@@ -131,9 +130,9 @@ static inline void GX2InitTexture(GX2Texture *tex, uint32_t width, uint32_t heig
     tex->surface.aa = GX2_AA_MODE1X;
     tex->surface.use = GX2_SURFACE_USE_TEXTURE;
     tex->surface.imageSize = 0;
-    tex->surface.image = NULL;
+    tex->surface.image = nullptr;
     tex->surface.mipmapSize = 0;
-    tex->surface.mipmaps = NULL;
+    tex->surface.mipmaps = nullptr;
     tex->surface.tileMode = tile;
     tex->surface.swizzle = 0;
     tex->surface.alignment = 0;
@@ -149,6 +148,7 @@ static inline void GX2InitTexture(GX2Texture *tex, uint32_t width, uint32_t heig
     for(i = 0; i < 5; i++)
         tex->regs[i] = 0;
 
+    DCFlushRange(&tex, sizeof(GX2Texture));
     GX2CalcSurfaceSizeAndAlignment(&tex->surface);
     GX2InitTextureRegs(tex);
 }

@@ -58,17 +58,17 @@ public:
     static void destroyInstance() {
         if(shaderInstance) {
             delete shaderInstance;
-            shaderInstance = NULL;
+            shaderInstance = nullptr;
         }
     }
 
-    void setShaders(void) const {
+    void setShaders() const {
         fetchShader->setShader();
         vertexShader.setShader();
         pixelShader.setShader();
     }
 
-    void setAttributeBuffer(const float * texCoords_in = NULL, const float * posVtxs_in = NULL, const uint32_t & vtxCount = 0) const {
+    void setAttributeBuffer(const float * texCoords_in = nullptr, const float * posVtxs_in = nullptr, const uint32_t & vtxCount = 0) const {
         if(posVtxs_in && texCoords_in && vtxCount) {
             VertexShader::setAttributeBuffer(0, vtxCount * cuVertexAttrSize, cuVertexAttrSize, posVtxs_in);
             VertexShader::setAttributeBuffer(1, vtxCount * cuTexCoordAttrSize, cuTexCoordAttrSize, texCoords_in);
